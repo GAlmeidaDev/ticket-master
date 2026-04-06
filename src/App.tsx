@@ -33,11 +33,17 @@ type Booking = {
   paymentLast4?: string
 }
 
-const API_BASE_URL = 'http://localhost:3000'
+const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const TOKEN_STORAGE_KEY = 'ticketmaster_token'
 
 function App() {
   const [search, setSearch] = useState('')
+  const [locationFilter, setLocationFilter] = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState('')
+  const [showRegister, setShowRegister] = useState(false)
+  const [registerName, setRegisterName] = useState('')
+  const [userDisplayName, setUserDisplayName] = useState('')
   const [events, setEvents] = useState<Event[]>([])
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null)
   const [quantity, setQuantity] = useState(2)
@@ -59,7 +65,7 @@ function App() {
     if (!token) return
     setLoadingBookings(true)
     try {
-      const response = await fetch(`${API_BASE_URL}/bookings`, {
+      const response = await fetch(`${apiBase}/bookings`, {
         headers: { Authorization: `Bearer ${token}` },
       })
       if (!response.ok) return
@@ -70,14 +76,24 @@ function App() {
     }
   }
 
+  const searchQueryString = useMemo(() => {
+    const params = new URLSearchParams()
+    if (search.trim()) params.set('term', search.trim())
+    if (locationFilter.trim()) params.set('location', locationFilter.trim())
+    if (typeFilter.trim()) params.set('type', typeFilter.trim())
+    if (dateFilter.trim()) params.set('date', dateFilter.trim())
+    return params.toString()
+  }, [search, locationFilter, typeFilter, dateFilter])
+
   useEffect(() => {
     async function loadEvents() {
       setLoadingEvents(true)
       setBookingMessage('')
       try {
-        const query = search.trim()
-        const params = query ? `?q=${encodeURIComponent(query)}` : ''
-        const response = await fetch(`${API_BASE_URL}/events${params}`)
+        const qs = searchQueryString
+        const response = await fetch(
+          `${apiBase}/search${qs ? `?${qs}` : ''}`,
+        )
         const data = (await response.json()) as { items: Event[] }
         setEvents(data.items)
       } catch {
@@ -88,7 +104,7 @@ function App() {
     }
 
     void loadEvents()
-  }, [search])
+  }, [apiBase, searchQueryString])
 
   useEffect(() => {
     if (token) {
@@ -97,6 +113,24 @@ function App() {
       setBookings([])
     }
   }, [token])
+
+  useEffect(() => {
+    if (!token) {
+      return
+    }
+    void (async () => {
+      try {
+        const response = await fetch(`${apiBase}/auth/me`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        if (!response.ok) return
+        const data = (await response.json()) as { user: { name: string } }
+        setUserDisplayName(data.user.name)
+      } catch {
+        /* ignore */
+      }
+    })()
+  }, [token, apiBase])
 
   useEffect(() => {
     if (!events.length) {
@@ -119,7 +153,7 @@ function App() {
     setAuthMessage('')
 
     try {
-      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+      const response = await fetch(`${apiBase}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -135,6 +169,7 @@ function App() {
       const data = (await response.json()) as LoginResponse
       setToken(data.token)
       localStorage.setItem(TOKEN_STORAGE_KEY, data.token)
+      setUserDisplayName(data.user.name)
       setAuthMessage(`Logado como ${data.user.email}`)
     } catch {
       setAuthMessage('Erro de conexao com backend.')
@@ -144,7 +179,40 @@ function App() {
   function handleLogout() {
     setToken(null)
     localStorage.removeItem(TOKEN_STORAGE_KEY)
+    setUserDisplayName('')
     setAuthMessage('Sessao encerrada.')
+  }
+
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setAuthMessage('')
+
+    try {
+      const response = await fetch(`${apiBase}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          name: registerName.trim(),
+        }),
+      })
+
+      if (!response.ok) {
+        const err = (await response.json()) as { message?: string }
+        setAuthMessage(err.message ?? 'Nao foi possivel cadastrar.')
+        return
+      }
+
+      const data = (await response.json()) as LoginResponse
+      setToken(data.token)
+      localStorage.setItem(TOKEN_STORAGE_KEY, data.token)
+      setUserDisplayName(data.user.name)
+      setAuthMessage(`Conta criada. Bem-vindo, ${data.user.name}.`)
+      setShowRegister(false)
+    } catch {
+      setAuthMessage('Erro de conexao com backend.')
+    }
   }
 
   async function handleReserve() {
@@ -159,7 +227,7 @@ function App() {
     }
 
     try {
-      const response = await fetch(`${API_BASE_URL}/bookings/reserve`, {
+      const response = await fetch(`${apiBase}/bookings/reserve`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +246,8 @@ function App() {
       }
 
       setBookingMessage('Reserva criada com sucesso. Confirme o pagamento abaixo.')
-      const refreshed = await fetch(`${API_BASE_URL}/events`)
+      const qs = searchQueryString
+      const refreshed = await fetch(`${apiBase}/search${qs ? `?${qs}` : ''}`)
       const refreshedData = (await refreshed.json()) as { items: Event[] }
       setEvents(refreshedData.items)
       await loadBookings()
@@ -192,7 +261,7 @@ function App() {
     setBookingMessage('')
     const cardLast4 = cardLast4ByBooking[bookingId]?.replace(/\D/g, '').slice(-4)
     try {
-      const response = await fetch(`${API_BASE_URL}/bookings/confirm`, {
+      const response = await fetch(`${apiBase}/bookings/confirm`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -225,28 +294,66 @@ function App() {
         <section className="card auth-card">
           <header className="header">
             <p className="eyebrow">Ticketmaster</p>
-            <h1>Entrar no sistema</h1>
+            <h1>{showRegister ? 'Criar conta' : 'Entrar no sistema'}</h1>
             <p className="subtitle">
               Autentique para acessar a tela de eventos e reservas.
             </p>
           </header>
-          <form className="auth-form" onSubmit={handleLogin}>
-            <input
-              type="email"
-              placeholder="Email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-            <input
-              type="password"
-              placeholder="Senha"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-            />
-            <button type="submit" className="reserve">
-              Entrar
+          {showRegister ? (
+            <form className="auth-form" onSubmit={handleRegister}>
+              <input
+                type="text"
+                placeholder="Nome"
+                value={registerName}
+                onChange={(event) => setRegisterName(event.target.value)}
+              />
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Senha (min. 6 caracteres)"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <button type="submit" className="reserve">
+                Cadastrar
+              </button>
+            </form>
+          ) : (
+            <form className="auth-form" onSubmit={handleLogin}>
+              <input
+                type="email"
+                placeholder="Email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Senha"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+              />
+              <button type="submit" className="reserve">
+                Entrar
+              </button>
+            </form>
+          )}
+          <p className="auth-toggle">
+            <button
+              type="button"
+              className="link-button"
+              onClick={() => {
+                setShowRegister(!showRegister)
+                setAuthMessage('')
+              }}
+            >
+              {showRegister ? 'Ja tenho conta' : 'Criar conta'}
             </button>
-          </form>
+          </p>
           {authMessage ? <small>{authMessage}</small> : null}
         </section>
       </main>
@@ -260,24 +367,59 @@ function App() {
           <p className="eyebrow">Ticketmaster - Sistema</p>
           <h1>Eventos e reservas</h1>
           <p className="subtitle">
-            Frontend integrado ao backend real com autenticacao via token.
+            Busca com filtros no mesmo estilo do desenho (termo, local, tipo, data). URL da API
+            via variavel de ambiente VITE_API_URL.
           </p>
         </div>
-        <button type="button" className="reserve logout-button" onClick={handleLogout}>
-          Sair
-        </button>
+        <div className="header-actions">
+          {userDisplayName ? (
+            <span className="user-pill">{userDisplayName}</span>
+          ) : null}
+          <button type="button" className="reserve logout-button" onClick={handleLogout}>
+            Sair
+          </button>
+        </div>
       </header>
 
       {authMessage ? <small>{authMessage}</small> : null}
 
-      <section className="search-panel">
-        <label htmlFor="search-input">Buscar por evento, cidade ou genero</label>
-        <input
-          id="search-input"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Ex.: rock, sao paulo, jazz..."
-        />
+      <section className="search-panel filters-grid">
+        <div className="filter-field">
+          <label htmlFor="search-input">Termo (titulo ou genero)</label>
+          <input
+            id="search-input"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Ex.: rock, jazz..."
+          />
+        </div>
+        <div className="filter-field">
+          <label htmlFor="location-input">Local (cidade ou venue)</label>
+          <input
+            id="location-input"
+            value={locationFilter}
+            onChange={(event) => setLocationFilter(event.target.value)}
+            placeholder="Ex.: Sao Paulo, Arena..."
+          />
+        </div>
+        <div className="filter-field">
+          <label htmlFor="type-input">Tipo / genero</label>
+          <input
+            id="type-input"
+            value={typeFilter}
+            onChange={(event) => setTypeFilter(event.target.value)}
+            placeholder="Ex.: Samba, Rock..."
+          />
+        </div>
+        <div className="filter-field">
+          <label htmlFor="date-input">Data (AAAA-MM-DD)</label>
+          <input
+            id="date-input"
+            type="date"
+            value={dateFilter}
+            onChange={(event) => setDateFilter(event.target.value)}
+          />
+        </div>
       </section>
 
       <section className="grid">
