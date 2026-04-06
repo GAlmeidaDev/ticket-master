@@ -30,7 +30,6 @@ type Booking = {
   status: 'reserved' | 'confirmed'
   createdAt: string
   confirmedAt?: string
-  paymentLast4?: string
 }
 
 const apiBase = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -57,9 +56,6 @@ function App() {
   const [loadingEvents, setLoadingEvents] = useState(false)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loadingBookings, setLoadingBookings] = useState(false)
-  const [cardLast4ByBooking, setCardLast4ByBooking] = useState<
-    Record<string, string>
-  >({})
 
   async function loadBookings() {
     if (!token) return
@@ -259,7 +255,6 @@ function App() {
   async function handleConfirmPayment(bookingId: string) {
     if (!token) return
     setBookingMessage('')
-    const cardLast4 = cardLast4ByBooking[bookingId]?.replace(/\D/g, '').slice(-4)
     try {
       const response = await fetch(`${apiBase}/bookings/confirm`, {
         method: 'PUT',
@@ -267,10 +262,7 @@ function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          bookingId,
-          paymentDetails: cardLast4 ? { cardLast4 } : undefined,
-        }),
+        body: JSON.stringify({ bookingId }),
       })
       if (!response.ok) {
         const errorData = (await response.json()) as { message?: string }
@@ -315,10 +307,11 @@ function App() {
               />
               <input
                 type="password"
-                placeholder="Senha (min. 6 caracteres)"
+                placeholder="Senha"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
               />
+              <small className="muted">Minimo 6 caracteres</small>
               <button type="submit" className="reserve">
                 Cadastrar
               </button>
@@ -367,8 +360,8 @@ function App() {
           <p className="eyebrow">Ticketmaster - Sistema</p>
           <h1>Eventos e reservas</h1>
           <p className="subtitle">
-            Busca com filtros no mesmo estilo do desenho (termo, local, tipo, data). URL da API
-            via variavel de ambiente VITE_API_URL.
+            Filtros por termo, local, tipo e data. A URL da API vem da variavel de ambiente
+            VITE_API_URL.
           </p>
         </div>
         <div className="header-actions">
@@ -385,25 +378,25 @@ function App() {
 
       <section className="search-panel filters-grid">
         <div className="filter-field">
-          <label htmlFor="search-input">Termo (titulo ou genero)</label>
+          <label htmlFor="search-input">Termo</label>
           <input
             id="search-input"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Ex.: rock, jazz..."
+            placeholder="Titulo ou genero, ex.: rock, jazz"
           />
         </div>
         <div className="filter-field">
-          <label htmlFor="location-input">Local (cidade ou venue)</label>
+          <label htmlFor="location-input">Local</label>
           <input
             id="location-input"
             value={locationFilter}
             onChange={(event) => setLocationFilter(event.target.value)}
-            placeholder="Ex.: Sao Paulo, Arena..."
+            placeholder="Cidade ou venue, ex.: Sao Paulo"
           />
         </div>
         <div className="filter-field">
-          <label htmlFor="type-input">Tipo / genero</label>
+          <label htmlFor="type-input">Genero</label>
           <input
             id="type-input"
             value={typeFilter}
@@ -412,7 +405,7 @@ function App() {
           />
         </div>
         <div className="filter-field">
-          <label htmlFor="date-input">Data (AAAA-MM-DD)</label>
+          <label htmlFor="date-input">Data do evento</label>
           <input
             id="date-input"
             type="date"
@@ -424,7 +417,10 @@ function App() {
 
       <section className="grid">
         <article className="card">
-          <h2>Eventos encontrados ({events.length})</h2>
+          <h2 className="card-title-row">
+            Eventos encontrados
+            <span className="count-badge">{events.length}</span>
+          </h2>
           {loadingEvents ? <p>Carregando eventos...</p> : null}
           <ul className="event-list">
             {events.map((event) => (
@@ -459,8 +455,8 @@ function App() {
               </p>
               <p>Genero: {selectedEvent.genre}</p>
               <p>
-                Ingressos disponiveis: {selectedEvent.availableTickets} | A
-                partir de R$ {selectedEvent.lowestPrice}
+                Ingressos disponiveis: {selectedEvent.availableTickets}. A partir de{' '}
+                R$ {selectedEvent.lowestPrice}
               </p>
 
               <label htmlFor="quantity">Quantidade</label>
@@ -488,6 +484,9 @@ function App() {
 
       <section className="card bookings-section">
         <h2>Minhas reservas</h2>
+        <p className="muted section-hint">
+          Pagamento aqui e so demonstracao; em producao usaria Stripe no navegador.
+        </p>
         {loadingBookings ? <p>Carregando...</p> : null}
         {!loadingBookings && bookings.length === 0 ? (
           <p className="muted">Nenhuma reserva ainda. Reserve ingressos acima.</p>
@@ -512,24 +511,10 @@ function App() {
                   {b.confirmedAt
                     ? ` · Confirmado ${new Date(b.confirmedAt).toLocaleString('pt-BR')}`
                     : null}
-                  {b.paymentLast4 ? ` · Cartao ****${b.paymentLast4}` : null}
                 </small>
               </div>
               {b.status === 'reserved' ? (
                 <div className="booking-actions">
-                  <input
-                    className="card-last4"
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="Ultimos 4 digitos"
-                    value={cardLast4ByBooking[b.id] ?? ''}
-                    onChange={(e) =>
-                      setCardLast4ByBooking((prev) => ({
-                        ...prev,
-                        [b.id]: e.target.value.replace(/\D/g, '').slice(0, 4),
-                      }))
-                    }
-                  />
                   <button
                     type="button"
                     className="btn-secondary"
