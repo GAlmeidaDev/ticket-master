@@ -5,6 +5,13 @@
   box-sizing: border-box;
 }
 
+.auth-screen {
+  display: flex;
+  min-height: 100vh;
+  align-items: center;
+  justify-content: center;
+}
+
 .header h1 {
   margin: 0;
   font-size: clamp(1.8rem, 3.5vw, 2.8rem);
@@ -33,11 +40,41 @@
 }
 
 .search-panel input,
-.booking-panel input {
+.booking-panel input,
+.auth-form input {
   border: 1px solid #d0d7e2;
   border-radius: 10px;
   padding: 10px 12px;
   font-size: 1rem;
+}
+
+.auth-card {
+  margin-top: 20px;
+  width: min(560px, 100%);
+}
+
+.auth-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+.system-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.logout-button {
+  white-space: nowrap;
+}
+
+.auth-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
 }
 
 .grid {
@@ -117,7 +154,91 @@
   cursor: pointer;
 }
 
+.bookings-section {
+  margin-top: 20px;
+}
+
+.muted {
+  color: #5b6170;
+}
+
+.bookings-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.booking-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #e4e8ef;
+  border-radius: 10px;
+  background: #fafbfd;
+}
+
+.booking-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.booking-info span {
+  color: #5b6170;
+  font-size: 0.95rem;
+}
+
+.status-pending {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.status-confirmed {
+  color: #047857;
+  font-weight: 600;
+}
+
+.booking-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.card-last4 {
+  width: 8rem;
+  border: 1px solid #d0d7e2;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 0.95rem;
+}
+
+.btn-secondary {
+  border: 1px solid #3a7afe;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #fff;
+  color: #3a7afe;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: #eff5ff;
+}
+
 @media (max-width: 900px) {
+  .system-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .grid {
     grid-template-columns: 1fr;
   }
